@@ -5,6 +5,7 @@
 #include "sensor.h"
 #include "app.h"
 #include "pinout.h"
+#include "webmirror.h"
 
 TFT_eSPI tft;
 
@@ -18,6 +19,7 @@ void displayInit()
 void clearScreen()
 {
     tft.fillScreen(TFT_BLACK);
+    mirrorFillScreen(TFT_BLACK);
 }
 
 void drawTitle(const char* title)
@@ -25,7 +27,9 @@ void drawTitle(const char* title)
     tft.setTextSize(2);
     tft.setTextColor(TFT_WHITE);
     tft.drawString(title, 30, 10);
+    mirrorDrawString(title, 30, 10, 2, TFT_WHITE);
     tft.drawFastHLine(10, 28, 300, TFT_DARKGREY);
+    mirrorDrawHLine(10, 28, 300, TFT_DARKGREY);
 }
 
 // Palomita (check) dibujada con líneas
@@ -33,6 +37,8 @@ void drawCheck(int x, int y, uint16_t color)
 {
     tft.drawLine(x, y + 6, x + 4, y + 10, color);
     tft.drawLine(x + 4, y + 10, x + 11, y, color);
+    mirrorDrawLine(x, y + 6, x + 4, y + 10, color);
+    mirrorDrawLine(x + 4, y + 10, x + 11, y, color);
 }
 
 // Tache (cross) dibujado con líneas
@@ -40,6 +46,8 @@ void drawCross(int x, int y, uint16_t color)
 {
     tft.drawLine(x, y, x + 9, y + 9, color);
     tft.drawLine(x + 9, y, x, y + 9, color);
+    mirrorDrawLine(x, y, x + 9, y + 9, color);
+    mirrorDrawLine(x + 9, y, x, y + 9, color);
 }
 
 void drawOption(int num, const char* text, int y, bool selected)
@@ -51,12 +59,14 @@ void drawOption(int num, const char* text, int y, bool selected)
     {
         tft.setTextColor(TFT_BLACK, TFT_CYAN);
         tft.drawString(buf, 20, y);
+        mirrorDrawString(buf, 20, y, 2, TFT_CYAN);
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
     }
     else
     {
         tft.setTextColor(TFT_WHITE);
         tft.drawString(buf, 20, y);
+        mirrorDrawString(buf, 20, y, 2, TFT_WHITE);
     }
 }
 

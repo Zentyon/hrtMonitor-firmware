@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "pinout.h"
 #include "keypad.h"
+#include "webmirror.h"
 
 static const byte ROWS = 4;
 static const byte COLS = 4;
@@ -76,6 +77,11 @@ static char scanRaw()
 
 char getKey()
 {
+#ifdef UI_MIRROR
+    char vk = webMirrorGetKey();
+    if (vk != '\0') return vk;
+#endif
+
     char raw = scanRaw();
     unsigned long now = millis();
 

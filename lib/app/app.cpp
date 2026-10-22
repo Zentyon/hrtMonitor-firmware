@@ -7,6 +7,7 @@
 #include "display.h"
 #include "ble.h"
 #include "pinout.h"
+#include "webmirror.h"
 
 State state = ST_SPLASH;
 
@@ -294,6 +295,7 @@ void appSetup()
     initKeypad();
     initAudio();
     bleInit();
+    webMirrorInit();
 
     // Splash
     stateStart = millis();
@@ -330,6 +332,7 @@ void appSetup()
 
 void appLoop()
 {
+    webMirrorLoop();
     char key = getKey();
 
     if (key)
