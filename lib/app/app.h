@@ -30,8 +30,12 @@ extern State state;
 extern unsigned long stateStart;
 extern unsigned long measureStart;
 
-extern bool isCalibrating;
-extern float currentAlphaDC;
+extern volatile bool isCalibrating;
+extern volatile float currentAlphaDC;
+
+// true durante los 10 s de ajuste del filtro (tras la calibracion).
+// La task del sensor lo usa para no calcular SpO2 todavia.
+extern volatile bool warmupActive;
 
 #define COUNTDOWN_DURATION 3000    // 3 segundos
 #define CALIBRATE_DURATION 5000    // 5 segundos
@@ -39,3 +43,7 @@ extern float currentAlphaDC;
 
 void appSetup();
 void appLoop();
+
+// Control de LEDs semaforo (unica implementacion; usado por app y display).
+void ledsAllOff();
+void ledsSetByBpm(int bpm);

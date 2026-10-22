@@ -60,7 +60,7 @@ const Range tableSport[8][2] = {
 
 // Nombres de deportes [idioma][indice 0-7]
 const char* sportNames[2][8] = {
-    {"Correr","Ciclismo","Natación","Fútbol","Básquetbol","Gimnasio","Atletismo","Artes marciales"},
+    {"Correr","Ciclismo","Natacion","Futbol","Basquetbol","Gimnasio","Atletismo","Artes marciales"},
     {"Running","Cycling","Swimming","Soccer","Basketball","Gym","Athletics","Martial arts"}
 };
 

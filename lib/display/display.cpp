@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <stdio.h>
 #include "display.h"
 #include "profile.h"
 #include "sensor.h"
@@ -10,7 +11,7 @@ TFT_eSPI tft;
 void displayInit()
 {
     tft.init();
-    tft.setRotation(1);
+    tft.setRotation(3);
     clearScreen();
 }
 
@@ -43,17 +44,19 @@ void drawCross(int x, int y, uint16_t color)
 
 void drawOption(int num, const char* text, int y, bool selected)
 {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s%d. %s", selected ? "> " : "  ", num, text);
     tft.setTextSize(2);
     if (selected)
     {
         tft.setTextColor(TFT_BLACK, TFT_CYAN);
-        tft.drawString("> " + String(num) + ". " + String(text), 20, y);
+        tft.drawString(buf, 20, y);
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
     }
     else
     {
         tft.setTextColor(TFT_WHITE);
-        tft.drawString("  " + String(num) + ". " + String(text), 20, y);
+        tft.drawString(buf, 20, y);
     }
 }
 
@@ -66,6 +69,21 @@ void showSplash()
     tft.setTextSize(1);
     tft.setTextColor(TFT_DARKGREY);
     tft.drawString("v1.0", 150, 100);
+}
+
+void showSensorError()
+{
+    clearScreen();
+    drawTitle(lang == 'E' ? "Aviso" : "Warning");
+    tft.setTextSize(2);
+    tft.setTextColor(TFT_YELLOW);
+    tft.drawString(lang == 'E' ? "Sensor no" : "Sensor not", 40, 60);
+    tft.drawString(lang == 'E' ? "detectado" : "detected", 40, 85);
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString(lang == 'E' ? "Modo demo (sin PPG)" : "Demo mode (no PPG)", 40, 120);
+    tft.setTextColor(TFT_DARKGREY);
+    tft.drawString(lang == 'E' ? "Revise SDA=21 SCL=22 3V3" : "Check SDA=21 SCL=22 3V3", 40, 145);
 }
 
 void showOnLang()
@@ -98,11 +116,12 @@ void updateAgeDisplay()
     tft.fillRect(80, 55, 120, 40, TFT_BLACK);
     tft.setTextSize(3);
     tft.setTextColor(TFT_CYAN);
-    String disp = "";
-    for (int i = 0; i < ageIdx; i++)
-        disp += String(ageInput[i]) + " ";
-    for (int i = ageIdx; i < 3; i++)
-        disp += "_ ";
+    char disp[16];
+    int p = 0;
+    for (int i = 0; i < ageIdx && p < (int)sizeof(disp) - 2; i++)
+        p += snprintf(disp + p, sizeof(disp) - p, "%c ", ageInput[i]);
+    for (int i = ageIdx; i < 3 && p < (int)sizeof(disp) - 2; i++)
+        p += snprintf(disp + p, sizeof(disp) - p, "_ ");
     tft.drawString(disp, 80, 60);
 }
 
@@ -112,8 +131,8 @@ void showOnGender()
     drawTitle(lang == 'E' ? "Genero" : "Gender");
     tft.setTextSize(2);
     tft.setTextColor(TFT_WHITE);
-    tft.drawString(lang == 'E' ? "* ♀ Femenino" : "* ♀ Female", 40, 60);
-    tft.drawString(lang == 'E' ? "# ♂ Masculino" : "# ♂ Male", 40, 90);
+    tft.drawString(lang == 'E' ? "* Femenino" : "* Female", 40, 60);
+    tft.drawString(lang == 'E' ? "# Masculino" : "# Male", 40, 90);
 }
 
 void showOnExercise()
@@ -190,6 +209,7 @@ void showOnConditionType()
 
 void showMenu()
 {
+    ledsAllOff();
     clearScreen();
     drawTitle("HRT Monitor");
     tft.setTextSize(2);
@@ -200,6 +220,7 @@ void showMenu()
 
 void showConfig()
 {
+    ledsAllOff();
     clearScreen();
     drawTitle(lang == 'E' ? "Configuracion" : "Settings");
     tft.setTextSize(2);
@@ -295,8 +316,8 @@ void showCalibrate()
     tft.drawString("5", 150, 70);
     tft.setTextSize(1);
     tft.setTextColor(TFT_DARKGREY);
-    tft.drawString(lang == 'E' ? "Mantenga la muñequera" : "Keep wristband on", 70, 130);
-    tft.drawString(lang == 'E' ? "en la muñeca" : "on wrist", 100, 145);
+    tft.drawString(lang == 'E' ? "Mantenga el brazalete" : "Keep wristband on", 70, 130);
+    tft.drawString(lang == 'E' ? "en su lugar" : "in place", 100, 145);
 }
 
 void updateCalibrateDisplay(int secondsLeft)
@@ -304,7 +325,9 @@ void updateCalibrateDisplay(int secondsLeft)
     tft.fillRect(135, 65, 50, 45, TFT_BLACK);
     tft.setTextSize(4);
     tft.setTextColor(TFT_YELLOW);
-    tft.drawString(String(secondsLeft), 135, 70);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", secondsLeft);
+    tft.drawString(buf, 135, 70);
 }
 
 void showCountdown()
@@ -313,8 +336,8 @@ void showCountdown()
     drawTitle(lang == 'E' ? "Preparando..." : "Preparing...");
     tft.setTextSize(2);
     tft.setTextColor(TFT_WHITE);
-    tft.drawString(lang == 'E' ? "Coloque la muñequera" : "Place wristband", 50, 60);
-    tft.drawString(lang == 'E' ? "en la muñeca" : "on wrist", 70, 85);
+    tft.drawString(lang == 'E' ? "Pongase el brazalete" : "Place wristband", 50, 60);
+    tft.drawString(lang == 'E' ? "en su lugar" : "in place", 70, 85);
     tft.setTextSize(5);
     tft.setTextColor(TFT_CYAN);
     tft.drawString("3", 150, 110);
@@ -328,8 +351,22 @@ void updateCountdownDisplay(int secondsLeft)
     tft.fillRect(130, 105, 60, 55, TFT_BLACK);
     tft.setTextSize(5);
     tft.setTextColor(TFT_CYAN);
-    tft.drawString(String(secondsLeft), 150, 110);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", secondsLeft);
+    tft.drawString(buf, 150, 110);
 }
+
+// --- Pantalla de medicion ---
+// Refresco limitado a ~5 Hz y redibujo solo de lo que cambia: evita
+// saturar el SPI (antes ~50 Hz con fillRect + String cada 20 ms).
+static const unsigned long UI_REFRESH_MS = 200;
+static const unsigned long WARMUP_MS = 10000;
+
+static unsigned long uiLastDraw = 0;
+static int  uiBpm = -1, uiSec = -1, uiBar = -1;
+static bool uiHasBpm = false, uiAdjust = false, uiLost = false, uiAdjWrist = false;
+static int  uiSAvg = -1, uiSMax = -1, uiSMin = -1, uiSO2 = -1;
+static bool uiSO2v = false;
 
 void showMeasure()
 {
@@ -338,6 +375,14 @@ void showMeasure()
     tft.setTextSize(1);
     tft.setTextColor(TFT_DARKGREY);
     tft.drawString("Prom  Max  Min", 20, 35);
+    tft.drawRect(20, 110, 280, 12, TFT_DARKGREY);
+
+    // Forzar el primer render
+    uiLastDraw = 0;
+    uiBpm = -1; uiSec = -1; uiBar = -1;
+    uiHasBpm = false; uiAdjust = false; uiLost = false; uiAdjWrist = false;
+    uiSAvg = -1; uiSMax = -1; uiSMin = -1; uiSO2 = -1;
+    uiSO2v = false;
 }
 
 void updateMeasureDisplay()
@@ -345,61 +390,138 @@ void updateMeasureDisplay()
     unsigned long elapsed = millis() - measureStart;
     if (elapsed >= MEASURE_DURATION) return;
 
+    SensorMeasure m;
+    sensorReadMeasure(m);
+    bool lost = sensorBeatLost();
+    bool adjusting = (elapsed < WARMUP_MS);
+
+    // LEDs (barato, cada iteracion) fuera del throttle de dibujo.
+    if (m.wristPresent && m.avgBpm > 0)
+        ledsSetByBpm(m.avgBpm);
+    else
+        ledsAllOff();
+
+    if (uiLastDraw != 0 && millis() - uiLastDraw < UI_REFRESH_MS) return;
+    uiLastDraw = millis();
+
     int remaining = (MEASURE_DURATION - elapsed) / 1000;
     int mins = remaining / 60;
     int secs = remaining % 60;
+    int barWidth = map(elapsed, 0, MEASURE_DURATION, 0, 280);
+    bool showBpm = m.wristPresent && m.avgBpm > 0;
 
     // BPM grande
-    tft.fillRect(20, 50, 280, 50, TFT_BLACK);
-    tft.setTextSize(4);
-    if (fingerPresent)
+    if (showBpm != uiHasBpm || (showBpm && m.avgBpm != uiBpm))
     {
-        tft.setTextColor(TFT_CYAN);
-        tft.drawString(String(avgBpm) + " BPM", 40, 60);
-    }
-    else
-    {
-        tft.setTextColor(TFT_DARKGREY);
-        tft.drawString("--", 120, 60);
+        tft.fillRect(20, 50, 280, 50, TFT_BLACK);
+        tft.setTextSize(4);
+        if (showBpm)
+        {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d BPM", m.avgBpm);
+            tft.setTextColor(TFT_CYAN);
+            tft.drawString(buf, 40, 60);
+        }
+        else
+        {
+            tft.setTextColor(TFT_DARKGREY);
+            tft.drawString("--", 120, 60);
+        }
+        uiHasBpm = showBpm;
+        uiBpm = m.avgBpm;
     }
 
     // Tiempo restante
-    tft.fillRect(240, 35, 80, 15, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_WHITE);
-    String timeStr = String(mins) + ":" + (secs < 10 ? "0" : "") + String(secs);
-    tft.drawString(timeStr, 260, 35);
+    if (secs != uiSec)
+    {
+        tft.fillRect(240, 35, 80, 15, TFT_BLACK);
+        tft.setTextSize(1);
+        tft.setTextColor(TFT_WHITE);
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d:%02d", mins, secs);
+        tft.drawString(buf, 260, 35);
+        uiSec = secs;
+    }
 
     // Barra de progreso
-    int barWidth = map(elapsed, 0, MEASURE_DURATION, 0, 280);
-    tft.drawRect(20, 110, 280, 12, TFT_DARKGREY);
-    tft.fillRect(20, 110, barWidth, 12, TFT_CYAN);
-
-    // Stats
-    tft.fillRect(20, 130, 280, 40, TFT_BLACK);
-    tft.setTextSize(2);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("P:" + String(avgBpm) + " X:" + String(maxBpm) + " N:" + String(minBpm), 20, 135);
-
-    // LEDs - Rango dinámico según perfil
-    if (fingerPresent && avgBpm > 0)
+    if (barWidth != uiBar)
     {
-        int rLo, rHi;
-        computeRange(rLo, rHi);
-        int band = (rHi - rLo) * 15 / 100;
-        if (band < 8) band = 8;
+        tft.fillRect(20, 110, barWidth, 12, TFT_CYAN);
+        if (barWidth < 280)
+            tft.fillRect(20 + barWidth, 110, 280 - barWidth, 12, TFT_BLACK);
+        tft.drawRect(20, 110, 280, 12, TFT_DARKGREY);
+        uiBar = barWidth;
+    }
 
-        digitalWrite(PIN_LED_VERDE, (avgBpm > rLo + band && avgBpm < rHi - band) ? HIGH : LOW);
-        digitalWrite(PIN_LED_AMARILLO,
-            ((avgBpm >= rLo && avgBpm <= rLo + band) ||
-             (avgBpm >= rHi - band && avgBpm <= rHi)) ? HIGH : LOW);
-        digitalWrite(PIN_LED_ROJO, (avgBpm < rLo || avgBpm > rHi) ? HIGH : LOW);
+    // Zona media: durante warmup muestra la guia; despues las stats.
+    if (adjusting)
+    {
+        if (!uiAdjust || m.wristPresent != uiAdjWrist)
+        {
+            tft.fillRect(20, 130, 280, 55, TFT_BLACK);
+            tft.setTextSize(2);
+            if (m.wristPresent)
+            {
+                tft.setTextColor(TFT_DARKGREY);
+                tft.drawString(lang == 'E' ? "Ajustando..." : "Adjusting...", 60, 140);
+            }
+            else
+            {
+                tft.setTextColor(TFT_YELLOW);
+                tft.drawString(lang == 'E' ? "Pongase el brazalete" : "Place wristband", 40, 140);
+            }
+            uiAdjust = true;
+            uiAdjWrist = m.wristPresent;
+        }
     }
     else
     {
-        digitalWrite(PIN_LED_VERDE, LOW);
-        digitalWrite(PIN_LED_AMARILLO, LOW);
-        digitalWrite(PIN_LED_ROJO, LOW);
+        if (uiAdjust)
+        {
+            tft.fillRect(20, 130, 280, 55, TFT_BLACK);
+            uiAdjust = false;
+            uiSAvg = -1;      // fuerza redibujo de stats
+            uiLost = !lost;   // fuerza revisar el aviso de muneca
+        }
+        if (m.avgBpm != uiSAvg || m.maxBpm != uiSMax || m.minBpm != uiSMin ||
+            m.spo2Valid != uiSO2v || m.spo2 != uiSO2)
+        {
+            tft.fillRect(20, 130, 280, 55, TFT_BLACK);
+            tft.setTextSize(2);
+            tft.setTextColor(TFT_WHITE);
+            char buf[32];
+            snprintf(buf, sizeof(buf), "P:%d X:%d N:%d", m.avgBpm, m.maxBpm, m.minBpm);
+            tft.drawString(buf, 20, 132);
+            if (m.spo2Valid)
+            {
+                tft.setTextColor(TFT_CYAN);
+                snprintf(buf, sizeof(buf), "O2:%d%%", m.spo2);
+            }
+            else
+            {
+                tft.setTextColor(TFT_DARKGREY);
+                snprintf(buf, sizeof(buf), "O2:--");
+            }
+            tft.drawString(buf, 20, 152);
+            uiSAvg = m.avgBpm;
+            uiSMax = m.maxBpm;
+            uiSMin = m.minBpm;
+            uiSO2 = m.spo2;
+            uiSO2v = m.spo2Valid;
+        }
+    }
+
+    // Sin latido >3 s: aviso. Se borra cuando vuelve el pulso.
+    if (lost != uiLost)
+    {
+        tft.fillRect(0, 198, 320, 30, TFT_BLACK);
+        if (lost && !adjusting)
+        {
+            tft.setTextSize(2);
+            tft.setTextColor(TFT_YELLOW);
+            tft.drawString(lang == 'E' ? "Pongase el brazalete" : "Place wristband", 40, 200);
+        }
+        uiLost = lost;
     }
 }
 
@@ -407,6 +529,10 @@ void showResults()
 {
     clearScreen();
     drawTitle(lang == 'E' ? "Resultados" : "Results");
+
+    SensorMeasure m;
+    sensorReadMeasure(m);
+    char buf[64];
 
     if (bpmCount == 0)
     {
@@ -417,43 +543,50 @@ void showResults()
         tft.setTextColor(TFT_WHITE);
         tft.drawString(lang == 'E' ? "No se detecto pulso" : "No pulse detected", 20, 95);
         tft.drawString(lang == 'E' ? "Repita la medicion" : "Repeat measurement", 20, 115);
-        digitalWrite(PIN_LED_VERDE, LOW);
-        digitalWrite(PIN_LED_AMARILLO, LOW);
+        ledsAllOff();
         digitalWrite(PIN_LED_ROJO, HIGH);
         tft.setTextSize(1);
         tft.setTextColor(TFT_DARKGREY);
-        tft.drawString("A. " + String(lang == 'E' ? "Volver" : "Back"), 120, 180);
+        snprintf(buf, sizeof(buf), "A. %s", lang == 'E' ? "Volver" : "Back");
+        tft.drawString(buf, 120, 180);
         return;
     }
 
     tft.setTextSize(2);
     tft.setTextColor(TFT_CYAN);
-    tft.drawString((lang == 'E' ? "Promedio: " : "Average: ") + String(avgBpm) + " BPM", 20, 45);
-    tft.drawString((lang == 'E' ? "Maximo: " : "Max: ") + String(maxBpm) + " BPM", 20, 70);
-    tft.drawString((lang == 'E' ? "Minimo: " : "Min: ") + String(minBpm) + " BPM", 20, 95);
+    snprintf(buf, sizeof(buf), "%s%d BPM", lang == 'E' ? "Promedio: " : "Average: ", m.avgBpm);
+    tft.drawString(buf, 20, 45);
+    snprintf(buf, sizeof(buf), "%s%d BPM", lang == 'E' ? "Maximo: " : "Max: ", m.maxBpm);
+    tft.drawString(buf, 20, 70);
+    snprintf(buf, sizeof(buf), "%s%d BPM", lang == 'E' ? "Minimo: " : "Min: ", m.minBpm);
+    tft.drawString(buf, 20, 95);
 
     int totalSec = MEASURE_DURATION / 1000;
-    tft.drawString((lang == 'E' ? "Duracion: " : "Duration: ") + String(totalSec / 60) + " min", 20, 120);
+    if (m.spo2Valid)
+        snprintf(buf, sizeof(buf), "%s%d:%02d  O2:%d%%",
+                 lang == 'E' ? "Duracion: " : "Duration: ", totalSec / 60, totalSec % 60, m.spo2);
+    else
+        snprintf(buf, sizeof(buf), "%s%d:%02d  O2:--",
+                 lang == 'E' ? "Duracion: " : "Duration: ", totalSec / 60, totalSec % 60);
+    tft.drawString(buf, 20, 120);
 
     int rLo, rHi;
     computeRange(rLo, rHi);
     tft.setTextSize(1);
     tft.setTextColor(TFT_WHITE);
-    tft.drawString((lang == 'E' ? "Tu rango: " : "Your range: ") + String(rLo) + "-" + String(rHi) + " BPM", 20, 148);
+    snprintf(buf, sizeof(buf), "%s%d-%d BPM", lang == 'E' ? "Tu rango: " : "Your range: ", rLo, rHi);
+    tft.drawString(buf, 20, 148);
 
     // Mantener LED activo según último BPM
-    if (avgBpm > 0)
-    {
-        int band = (rHi - rLo) * 15 / 100;
-        if (band < 8) band = 8;
-        digitalWrite(PIN_LED_VERDE, (avgBpm > rLo + band && avgBpm < rHi - band) ? HIGH : LOW);
-        digitalWrite(PIN_LED_AMARILLO,
-            ((avgBpm >= rLo && avgBpm <= rLo + band) ||
-             (avgBpm >= rHi - band && avgBpm <= rHi)) ? HIGH : LOW);
-        digitalWrite(PIN_LED_ROJO, (avgBpm < rLo || avgBpm > rHi) ? HIGH : LOW);
-    }
+    if (m.avgBpm > 0)
+        ledsSetByBpm(m.avgBpm);
+    else
+        ledsAllOff();
 
     tft.setTextSize(1);
     tft.setTextColor(TFT_DARKGREY);
-    tft.drawString("A. " + String(lang == 'E' ? "Volver" : "Back"), 120, 180);
+    snprintf(buf, sizeof(buf), "* SpO2 %s", lang == 'E' ? "estimado, sin calibrar" : "estimate, uncalibrated");
+    tft.drawString(buf, 20, 165);
+    snprintf(buf, sizeof(buf), "A. %s", lang == 'E' ? "Volver" : "Back");
+    tft.drawString(buf, 120, 180);
 }

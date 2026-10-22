@@ -1,10 +1,12 @@
 #pragma once
 
-// Keypad 4x4 con barrido manual.
-// Filas = OUTPUT (32,33,25,26). Columnas = INPUT (34,35,36,39).
-// Los GPIO 34/35/36/39 son solo-entrada (sin pull-up interno).
-// REQUISITO HARDWARE: 4 resistencias pull-up de 10k de cada
-// columna (34,35,36,39) a 3.3V, para que en reposo lean HIGH.
+// Keypad 4x4 Cherry MX con barrido manual (sin diodos: max 2 teclas).
+// Filas = GPIO 32,33,25,26 (con pull-up interno, se usan como salida
+// por turno: activa en LOW, inactivas en alta impedancia para evitar
+// cortos si se presionan 2 teclas de la misma columna).
+// Columnas = GPIO 34,35,36,39 (solo-entrada, SIN pull-up interno).
+// REQUISITO HARDWARE: red de 4x10k pull-up de cada columna a 3.3V.
+// Debounce 15 ms para Cherry MX + espera liberacion (sin repeticion).
 
 void initKeypad();
-char getKey();  // '\0' si no hay tecla nueva (detecta flanco)
+char getKey();  // '\0' si no hay tecla nueva estable

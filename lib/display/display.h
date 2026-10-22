@@ -16,6 +16,7 @@ void drawCross(int x, int y, uint16_t color);
 void drawOption(int num, const char* text, int y, bool selected);
 
 void showSplash();
+void showSensorError();
 void showOnLang();
 void showOnAge();
 void updateAgeDisplay();

@@ -12,8 +12,30 @@ State state = ST_SPLASH;
 
 unsigned long stateStart = 0;
 unsigned long measureStart = 0;
-bool isCalibrating = true;
-float currentAlphaDC = 0.05f;
+volatile bool isCalibrating = true;
+volatile float currentAlphaDC = 0.05f;
+volatile bool warmupActive = false;
+
+void ledsAllOff()
+{
+    digitalWrite(PIN_LED_VERDE, LOW);
+    digitalWrite(PIN_LED_AMARILLO, LOW);
+    digitalWrite(PIN_LED_ROJO, LOW);
+}
+
+// Verde = dentro del rango, amarillo = borde (15%), rojo = fuera.
+void ledsSetByBpm(int v)
+{
+    if (v <= 0) { ledsAllOff(); return; }
+    int rLo, rHi;
+    computeRange(rLo, rHi);
+    int band = (rHi - rLo) * 15 / 100;
+    if (band < 8) band = 8;
+    digitalWrite(PIN_LED_VERDE, (v > rLo + band && v < rHi - band) ? HIGH : LOW);
+    digitalWrite(PIN_LED_AMARILLO,
+        ((v >= rLo && v <= rLo + band) || (v >= rHi - band && v <= rHi)) ? HIGH : LOW);
+    digitalWrite(PIN_LED_ROJO, (v < rLo || v > rHi) ? HIGH : LOW);
+}
 
 static void handleOnboarding(char key)
 {
@@ -141,16 +163,8 @@ static void handleMenu(char key)
     {
         state = ST_COUNTDOWN;
         stateStart = millis();
-        normInit = false;
-        lastBeat = 0;
-        bpm = 0;
-        avgBpm = 0;
-        maxBpm = 0;
-        minBpm = 999;
-        bpmCount = 0;
-        schmittState = false;
-        isCalibrating = true;
-        currentAlphaDC = 0.05f;
+        warmupActive = false;
+        sensorBeginMeasurement();
         showCountdown();
         beep(800, 50);
     }
@@ -275,7 +289,7 @@ void appSetup()
     digitalWrite(PIN_LED_AMARILLO, LOW);
     digitalWrite(PIN_LED_ROJO, LOW);
 
-    sensorInit();
+    sensorAvailable = sensorInit();
     displayInit();
     initKeypad();
     initAudio();
@@ -288,6 +302,18 @@ void appSetup()
     delay(100);
     beep(1500, 150);
     delay(1800);
+
+    // Sin sensor: aviso visible + patron de error, pero se sigue
+    // al menu/onboarding en modo demo (display muestra "--").
+    if (!sensorAvailable)
+    {
+        Serial.println("Aviso: arrancando en modo demo (sin MAX30102)");
+        showSensorError();
+        beep(400, 200);
+        delay(200);
+        beep(400, 200);
+        delay(2200);
+    }
 
     // Cargar perfil
     if (loadProfile())
@@ -373,10 +399,9 @@ void appLoop()
     }
 
     // --- Estado: COUNTDOWN ---
+    // (el muestreo PPG corre en la task dedicada; aqui solo UI)
     if (state == ST_COUNTDOWN)
     {
-        processSensor();
-
         unsigned long elapsed = millis() - stateStart;
         int remaining = 3 - (elapsed / 1000);
         if (remaining < 0) remaining = 0;
@@ -394,41 +419,20 @@ void appLoop()
     // --- Estado: CALIBRATE ---
     if (state == ST_CALIBRATE)
     {
-        processSensor();
-
         unsigned long elapsed = millis() - stateStart;
         int remaining = 5 - (elapsed / 1000);
         if (remaining < 0) remaining = 0;
         updateCalibrateDisplay(remaining);
 
         // LEDs durante calibración
-        if (fingerPresent && avgBpm > 0)
-        {
-            int rLo, rHi;
-            computeRange(rLo, rHi);
-            int band = (rHi - rLo) * 15 / 100;
-            if (band < 8) band = 8;
-            digitalWrite(PIN_LED_VERDE, (avgBpm > rLo + band && avgBpm < rHi - band) ? HIGH : LOW);
-            digitalWrite(PIN_LED_AMARILLO,
-                ((avgBpm >= rLo && avgBpm <= rLo + band) ||
-                 (avgBpm >= rHi - band && avgBpm <= rHi)) ? HIGH : LOW);
-            digitalWrite(PIN_LED_ROJO, (avgBpm < rLo || avgBpm > rHi) ? HIGH : LOW);
-        }
+        if (wristPresent && avgBpm > 0)
+            ledsSetByBpm(avgBpm);
         else
-        {
-            digitalWrite(PIN_LED_VERDE, LOW);
-            digitalWrite(PIN_LED_AMARILLO, LOW);
-            digitalWrite(PIN_LED_ROJO, LOW);
-        }
+            ledsAllOff();
 
         if (elapsed >= CALIBRATE_DURATION)
         {
-            isCalibrating = false;
-            currentAlphaDC = 0.1f;
-            rateSpot = 0;
-            memset(rates, 0, sizeof(rates));
-            avgBpm = 0;
-            bpmCount = 0;
+            sensorEndCalibration();
             state = ST_MEASURE;
             measureStart = millis();
             showMeasure();
@@ -439,7 +443,6 @@ void appLoop()
     // --- Estado: MEASURE ---
     if (state == ST_MEASURE)
     {
-        processSensor();
         bleUpdate(avgBpm);
 
         unsigned long elapsed = millis() - measureStart;
@@ -448,59 +451,20 @@ void appLoop()
         // Ramp-down: alpha DC baja de 0.05 → ALPHA_DC en 10s (lineal)
         if (elapsed < WARMUP_MS)
         {
+            warmupActive = true;
             float progress = (float)elapsed / WARMUP_MS;
             currentAlphaDC = 0.05f - (0.05f - ALPHA_DC) * progress;
             if (currentAlphaDC < ALPHA_DC) currentAlphaDC = ALPHA_DC;
         }
-        else if (currentAlphaDC < ALPHA_DC)
-        {
-            currentAlphaDC = ALPHA_DC;
-        }
-
-        // Display: warmup muestra "Ajustando...", después muestra normal
-        if (elapsed >= WARMUP_MS)
-        {
-            updateMeasureDisplay();
-        }
         else
         {
-            // Warmup visual: BPM + tiempo + barra, pero texto "Ajustando..." y LEDs apagados
-            int remaining = (MEASURE_DURATION - elapsed) / 1000;
-            int mins = remaining / 60;
-            int secs = remaining % 60;
-
-            tft.fillRect(20, 50, 280, 50, TFT_BLACK);
-            tft.setTextSize(4);
-            if (fingerPresent && avgBpm > 0)
-            {
-                tft.setTextColor(TFT_CYAN);
-                tft.drawString(String(avgBpm) + " BPM", 40, 60);
-            }
-            else
-            {
-                tft.setTextColor(TFT_DARKGREY);
-                tft.drawString("--", 120, 60);
-            }
-
-            tft.fillRect(240, 35, 80, 15, TFT_BLACK);
-            tft.setTextSize(1);
-            tft.setTextColor(TFT_WHITE);
-            String timeStr = String(mins) + ":" + (secs < 10 ? "0" : "") + String(secs);
-            tft.drawString(timeStr, 260, 35);
-
-            int barWidth = map(elapsed, 0, MEASURE_DURATION, 0, 280);
-            tft.drawRect(20, 110, 280, 12, TFT_DARKGREY);
-            tft.fillRect(20, 110, barWidth, 12, TFT_CYAN);
-
-            tft.fillRect(20, 130, 280, 40, TFT_BLACK);
-            tft.setTextSize(1);
-            tft.setTextColor(TFT_DARKGREY);
-            tft.drawString(lang == 'E' ? "Ajustando..." : "Adjusting...", 100, 140);
-
-            digitalWrite(PIN_LED_VERDE, LOW);
-            digitalWrite(PIN_LED_AMARILLO, LOW);
-            digitalWrite(PIN_LED_ROJO, LOW);
+            warmupActive = false;
+            if (currentAlphaDC < ALPHA_DC) currentAlphaDC = ALPHA_DC;
         }
+
+        // Toda la UI de medicion (warmup incluido) vive en display.cpp,
+        // con refresco limitado a ~5 Hz.
+        updateMeasureDisplay();
 
         if (elapsed >= MEASURE_DURATION)
         {

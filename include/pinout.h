@@ -93,8 +93,15 @@
 // TFT_RST conectado a EN (reset del ESP32, siempre HIGH despues de boot)
 // TFT_BL conectado directo a 3.3V (siempre encendido)
 
-// TECLADO MATRICIAL 4x4
-// Filas (OUTPUT) - Lado izquierdo
+// TECLADO MATRICIAL 4x4 (Cherry MX, sin diodos: max 2 teclas a la vez)
+// Deducido de ren_pcb (MOD1 E..M) + matrix4x4 (J1 1..8) con bus recto:
+//   ESP32 32,33,25,26 = driver = COL1..COL4 del teclado (salidas por
+//     turno: una en LOW, resto en alta impedancia).
+//   ESP32 34,35,36,39 = lectores = FILA1..FILA4 del teclado (entradas
+//     con pull-up externo de 10k a 3V3).
+// Si el bus no va recto E->1...M->8, ajustar los defines.
+// REMAP: el orden es libre; si traspone filas<->columnas, trasponer
+// tambien la tabla `keys` en lib/keypad/keypad.cpp.
 #define PIN_KEY_R1      32    // D32 → Fila 1
 #define PIN_KEY_R2      33    // D33 → Fila 2
 #define PIN_KEY_R3      25    // D25 → Fila 3
